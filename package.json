@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "start": "node ./src/server.js",
-    "dev": "nodemon --watch src ./src/server.js"
+    "dev": "nodemon --watch src ./src/server.js",
+     "postinstall": "bash ./install_oracle_client.sh"
   },
   "author": "Your Name",
   "license": "MIT",
