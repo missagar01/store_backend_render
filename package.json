@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node ./src/server.js",
     "dev": "nodemon --watch src ./src/server.js",
-     "postinstall": "bash ./install_oracle_client.sh"
+      "postinstall": "bash ./install_oracle_client.sh",
+  "start": "node src/index.js"
   },
   "author": "Your Name",
   "license": "MIT",
