@@ -19,7 +19,6 @@ export async function initPool() {
       poolIncrement: 1,
       connectTimeout: 10,
       queueTimeout: 10000,
-      stmtCacheSize: 0,
     });
 
     console.log("✅ Oracle connection pool started successfully");
