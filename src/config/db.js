@@ -1,4 +1,4 @@
-import oracledb from "oracledb";
+import oracledb from "./oracleClient.js";
 import dotenv from "dotenv";
 import { initOracleClient } from "./oracleClient.js";
 
@@ -9,6 +9,7 @@ let pool;
 export async function initPool() {
   try {
     initOracleClient();
+
     pool = await oracledb.createPool({
       user: process.env.ORACLE_USER,
       password: process.env.ORACLE_PASSWORD,
@@ -20,9 +21,10 @@ export async function initPool() {
       queueTimeout: 10000,
       stmtCacheSize: 0,
     });
-    console.log("✅ Oracle connection pool started");
+
+    console.log("✅ Oracle connection pool started successfully");
   } catch (err) {
-    console.error("❌ Pool init failed:", err);
+    console.error("❌ Pool initialization failed:", err);
     process.exit(1);
   }
 }

@@ -1,13 +1,16 @@
 import oracledb from "oracledb";
 
+// No need for initOracleClient() on Render or Linux.
+// node-oracledb will automatically use "thin mode" if no native client exists.
+
 export function initOracleClient() {
   try {
-    oracledb.initOracleClient({
-      libDir: "C:\\oracle\\instantclient_23_9",
-    });
-    console.log("✅ Oracle client initialized");
+    // Force thin mode (optional — safe to include)
+    oracledb.initOracleClient({ libDir: undefined });
+    console.log("✅ Oracle client initialized in Thin mode");
   } catch (err) {
-    console.error("❌ Failed to initialize Oracle client:", err);
-    process.exit(1);
+    console.warn("⚠️ Oracle client init skipped (Thin mode will be used):", err.message);
   }
 }
+
+export default oracledb;
