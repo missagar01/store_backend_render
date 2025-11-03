@@ -38,6 +38,7 @@ export async function vendorRateUpdateHistory() {
     );
     return result.rows;
   } finally {
+    
     await conn.close();
   }
 }

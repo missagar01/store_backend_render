@@ -2,7 +2,7 @@ import express from "express";
 import oracledb from "oracledb";
 import dotenv from "dotenv";
 import cors from "cors";
-
+import { supabase } from "../src/config/supabaseClient";
 
 dotenv.config();
 
