@@ -1,11 +1,20 @@
-FROM node:22
+# Dockerfile
 
-RUN apt-get update && apt-get install -y libaio1 unzip curl
+FROM node:22-bullseye
+
+# install dependencies
+RUN apt-get update && apt-get install -y libaio1 unzip curl && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+
+COPY package*.json ./
+
+COPY install_oracle_client.sh ./
+RUN chmod +x install_oracle_client.sh
+
+RUN npm ci --production
+
 COPY . .
 
-RUN bash ./install_oracle_client.sh
-RUN npm install
-
+EXPOSE 3004
 CMD ["npm", "start"]
