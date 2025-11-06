@@ -1,20 +1,36 @@
 import { supabase } from "../config/supabaseClient.js";
-import { getConnection } from "../config/db.js";
-import oracledb from "oracledb";
 import jwt from "jsonwebtoken";
 
-export async function authenticateWithSupabaseTable(userName, password) {
-  const usersTable = process.env.SUPABASE_USERS_TABLE || "users";
+/**
+ * Authenticate a user stored in a Supabase table.
+ * Accepts either a username (userName) or an employee id (employeeId) together with a password.
+ * Returns an object { ok: boolean, user?, session?, reason? }.
+ */
+export async function authenticateWithSupabaseTable(userName, password, employeeId) {
+  // sanitize inputs
+  if (typeof userName === "string") userName = userName.trim();
+  if (typeof employeeId === "string") employeeId = employeeId.trim();
+  if (typeof password === "string") password = password.trim();
 
+  const usersTable = process.env.SUPABASE_USERS_TABLE || "users";
   const usernameCol = process.env.SUPABASE_USERS_USERNAME_COLUMN || "user_name";
   const passwordCol = process.env.SUPABASE_USERS_PASSWORD_COLUMN || "password";
+  const employeeIdCol = process.env.SUPABASE_USERS_EMPLOYEE_ID_COLUMN || "employee_id";
 
-  const { data: rows, error } = await supabase
+  // require at least one identity (username or employee id) and a password
+  if (!userName && !employeeId) return { ok: false, reason: "missing_identity" };
+  if (!password) return { ok: false, reason: "missing_password" };
+
+  // Build query: always check password, and then add identity-specific filters.
+  let query = supabase
     .from(usersTable)
-    .select(`id, ${usernameCol}, ${passwordCol}, status, user_access, employee_id`)
-    .eq(usernameCol, userName)
-    .eq(passwordCol, password)
-    .limit(1);
+    .select(`id, ${usernameCol}, ${passwordCol}, status, role, ${employeeIdCol}`)
+    .eq(passwordCol, password);
+
+  if (userName) query = query.eq(usernameCol, userName);
+  if (employeeId) query = query.eq(employeeIdCol, employeeId);
+
+  const { data: rows, error } = await query.limit(1);
 
   if (error) throw new Error(error.message);
   if (!rows || rows.length === 0) return { ok: false, reason: "supabase_not_found_or_password_mismatch" };
@@ -23,72 +39,32 @@ export async function authenticateWithSupabaseTable(userName, password) {
 
   return {
     ok: true,
-    user: { id: row.id, email: null, username: row[usernameCol] },
+    user: {
+      id: row.id,
+      email: row.email || null,
+      username: row[usernameCol],
+      employee_id: row[employeeIdCol],
+      // include role/user access if available in the row
+      role: row.role || null,
+    },
     session: null,
   };
 }
 
-// export async function authenticateWithSupabaseAuth(email, password) {
-//   const { data, error } = await supabase.auth.signInWithPassword({
-//     email,
-//     password,
-//   });
-
-//   if (error) return { ok: false, reason: "supabase_auth_failed" };
-//   return {
-//     ok: true,
-//     user: { id: data.user?.id, email: data.user?.email, username: email },
-//     session: data.session,
-//   };
-// }
-
-export async function verifyUserInOracleIfConfigured(userName, password) {
-  const oracleSchema = process.env.ORACLE_USERS_SCHEMA || "SRMPLERP";
-  const oracleTable = process.env.ORACLE_USERS_TABLE || "USER_MAST";
-  const oracleUsernameCol = process.env.ORACLE_USERS_USERNAME_COLUMN || "user_code";
-  const oraclePasswordCol = process.env.ORACLE_USERS_PASSWORD_COLUMN || "PASSWORD";
-  const oracleActiveCol = process.env.ORACLE_USERS_ACTIVE_COLUMN; // optional
-
-  let conn;
-  try {
-    conn = await getConnection();
-    const passwordCaseInsensitive = String(process.env.ORACLE_PASSWORD_CASE_INSENSITIVE || "false").toLowerCase() === "true";
-    const query = `SELECT ${oracleUsernameCol}${oracleActiveCol ? ", " + oracleActiveCol : ""}
-                   FROM ${oracleSchema}.${oracleTable}
-                   WHERE TRIM(UPPER(${oracleUsernameCol})) = TRIM(UPPER(:username))
-                     AND ${passwordCaseInsensitive ? `TRIM(UPPER(${oraclePasswordCol})) = TRIM(UPPER(:password))` : `TRIM(${oraclePasswordCol}) = TRIM(:password)`}`;
-
-    const result = await conn.execute(
-      query,
-      { username: userName, password },
-      { outFormat: oracledb.OUT_FORMAT_OBJECT }
-    );
-    if (process.env.DEBUG_AUTH === "true") {
-      try {
-        console.log("[AUTH][ORACLE] query user", { user: userName, rows: result.rows ? result.rows.length : 0, caseInsensitivePwd: passwordCaseInsensitive });
-      } catch (_) {}
-    }
-
-    if (!result.rows || result.rows.length === 0) return { ok: false, reason: "User not found in Oracle" };
-    if (oracleActiveCol) {
-      const row = result.rows[0];
-      const isActive = row[oracleActiveCol] === 1 || row[oracleActiveCol] === true || row[oracleActiveCol] === "Y";
-      if (!isActive) return { ok: false, reason: "User is inactive" };
-    }
-    return { ok: true };
-  } finally {
-    if (conn) await conn.close();
-  }
-}
-
+/**
+ * Issue a backend JWT for the given user object.
+ * Payload will contain sub (user id), email and username.
+ */
 export function issueJwt(user) {
   const secret = process.env.JWT_SECRET;
   if (!secret) throw new Error("JWT_SECRET not configured");
 
   const payload = {
-    sub: user?.id,
-    email: user?.email || null,
-    username: user?.username || null,
+    sub: user?.id ?? null,
+    email: user?.email ?? null,
+    username: user?.username ?? null,
+    employee_id: user?.employee_id ?? null,
+    role: user?.role ?? null,
   };
 
   return jwt.sign(payload, secret, {
@@ -97,4 +73,17 @@ export function issueJwt(user) {
   });
 }
 
+export async function logoutUser(token) {
+  // you can add blacklist logic here later
+  if (!token) {
+    return {
+      ok: true,
+      message: "No token provided. User already logged out or not logged in.",
+    };
+  }
 
+  return {
+    ok: true,
+    message: "Logout successful. Remove token on client.",
+  };
+}

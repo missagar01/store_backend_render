@@ -1,11 +1,9 @@
 import { Router } from "express";
-import { login, loginSupabase } from "../controllers/auth.controller.js";
+import { loginSupabase, logout } from "../controllers/auth.controller.js";
 
 const router = Router();
 
-router.post("/login", login);
-router.post("/login/supabase", loginSupabase);
+router.post("/login", loginSupabase);
+router.post("/logout", logout); // ✅ works with or without token
 
 export default router;
-
-

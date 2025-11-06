@@ -1,0 +1,47 @@
+services:
+  - type: web
+    name: oracle-backend
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    plan: free
+    autoDeploy: true
+    healthCheckPath: /health/supabase
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      # Oracle DB (Thin mode on Render/Linux)
+      - key: ORACLE_USER
+        sync: false
+      - key: ORACLE_PASSWORD
+        sync: false
+      - key: ORACLE_CONNECTION_STRING
+        sync: false
+      # Supabase
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_USERS_TABLE
+        value: users
+      - key: SUPABASE_USERS_USERNAME_COLUMN
+        value: user_name
+      - key: SUPABASE_USERS_PASSWORD_COLUMN
+        value: password
+      - key: SUPABASE_USERS_EMPLOYEE_ID_COLUMN
+        value: employee_id
+      # JWT
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_EXPIRES_IN
+        value: 1h
+      - key: JWT_ISSUER
+        value: store-backend
+      # Redis (optional)
+      - key: REDIS_URL
+        value: redis://default:password@your-redis:6379
+
