@@ -1,81 +1,86 @@
-import jwt from "jsonwebtoken";
+import jwt from 'jsonwebtoken';
 
-// Extract bearer token from multiple sources for ease of use on Render and browsers
-function extractToken(req) {
-  // 1) Standard Authorization header
-  const header = req.headers?.authorization || req.headers?.Authorization;
-  if (typeof header === "string") {
-    const parts = header.split(" ");
-    if (parts.length === 2 && /^Bearer$/i.test(parts[0])) return parts[1];
-    if (parts.length === 1 && parts[0].length > 0) return parts[0];
+// Extract token from common locations (headers, cookies, query)
+export function getTokenFromReq(req) {
+  // Express lower-cases headers; use both just in case
+  const authHeader = req.headers && (req.headers.authorization || req.headers.Authorization);
+  let token = null;
+
+  if (authHeader && typeof authHeader === 'string') {
+    // Support `Bearer <token>` (case-insensitive) or raw token
+    const parts = authHeader.split(' ');
+    if (parts.length === 2 && /^Bearer$/i.test(parts[0])) {
+      token = parts[1].trim();
+    } else {
+      token = authHeader.trim();
+    }
   }
 
-  // 2) x-access-token header (often used by clients)
-  const xAccess = req.headers?.["x-access-token"];
-  if (typeof xAccess === "string" && xAccess.length > 0) return xAccess;
+  if (!token && req.headers && req.headers['x-access-token']) {
+    token = String(req.headers['x-access-token']).trim();
+  }
 
-  // 3) Query params (?token= or ?access_token=) – handy for quick browser tests
-  const qpToken = req.query?.token || req.query?.access_token;
-  if (typeof qpToken === "string" && qpToken.length > 0) return qpToken;
+  if (!token && req.cookies && req.cookies.token) {
+    token = String(req.cookies.token).trim();
+  }
 
-  // 4) Cookie fallback if cookie-parser is used
-  const cookieToken = req.cookies?.token || req.cookies?.access_token || null;
-  return cookieToken || null;
+  if (!token && req.query && req.query.token) {
+    token = String(req.query.token).trim();
+  }
+
+  return token || null;
+}
+
+function resolveJwtVerifyConfig() {
+  const algo = process.env.JWT_ALGO || (process.env.JWT_PUBLIC_KEY ? 'RS256' : 'HS256');
+  if (algo === 'RS256') {
+    // Accept multiline public keys provided via env (\n -> newline)
+    const publicKey = (process.env.JWT_PUBLIC_KEY || '').replace(/\\n/g, '\n');
+    if (!publicKey) {
+      throw new Error('JWT_PUBLIC_KEY missing for RS256 verification');
+    }
+    return { key: publicKey, options: { algorithms: ['RS256'] } };
+  }
+  // HS256 secret; prefer explicit JWT_SECRET, else fall back to Supabase secret if present
+  const secret = process.env.JWT_SECRET || process.env.SUPABASE_JWT_SECRET;
+  if (!secret) {
+    throw new Error('JWT secret not configured. Set JWT_SECRET or SUPABASE_JWT_SECRET');
+  }
+  return { key: secret, options: { algorithms: ['HS256'] } };
+}
+
+export function verifyJwt(token) {
+  const { key, options } = resolveJwtVerifyConfig();
+  return jwt.verify(token, key, options);
 }
 
 export function authenticate(req, res, next) {
   try {
-    const secret = process.env.JWT_SECRET;
-    if (!secret) {
-      return res.status(500).json({ ok: false, message: "JWT secret not configured" });
-    }
-
-    const token = extractToken(req);
+    const token = getTokenFromReq(req);
     if (!token) {
-      return res.status(401).json({ ok: false, message: "Missing authorization token" });
+      return res.status(401).json({ success: false, error: 'Unauthorized: missing token' });
     }
 
-    const verifyOptions = { clockTolerance: 5 };
-    if (process.env.JWT_ISSUER) verifyOptions.issuer = process.env.JWT_ISSUER;
+    let payload;
+    try {
+      payload = verifyJwt(token);
+    } catch (err) {
+      const code = err && err.name;
+      const msg =
+        code === 'TokenExpiredError'
+          ? 'Unauthorized: token expired'
+          : 'Unauthorized: invalid token';
+      return res.status(401).json({ success: false, error: msg, code });
+    }
 
-    const decoded = jwt.verify(token, secret, verifyOptions);
-    req.user = decoded;
+    // Attach decoded payload; avoid DB lookups in middleware
+    req.user = payload;
     return next();
-  } catch (err) {
-    return res.status(401).json({ ok: false, message: "Invalid or expired token" });
+  } catch (e) {
+    // Configuration or unexpected errors
+    return res.status(500).json({ success: false, error: 'Auth configuration error' });
   }
 }
 
-// Role-based guard: authorize("admin") or authorize("manager", "cashier")
-export function authorize(...allowedRoles) {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({ ok: false, message: "Unauthenticated" });
-    }
-    if (!allowedRoles || allowedRoles.length === 0) return next();
-
-    const userRole = req.user?.role || req.user?.Role || null;
-    if (!userRole) {
-      return res.status(403).json({ ok: false, message: "Forbidden: missing role" });
-    }
-    if (!allowedRoles.includes(userRole)) {
-      return res.status(403).json({ ok: false, message: "Forbidden: insufficient role" });
-    }
-    return next();
-  };
-}
-
-// Optional auth: attaches user if token valid, otherwise continues without error
-export function optionalAuth(req, res, next) {
-  const secret = process.env.JWT_SECRET;
-  const token = extractToken(req);
-  if (!secret || !token) return next();
-  try {
-    const verifyOptions = { clockTolerance: 5 };
-    if (process.env.JWT_ISSUER) verifyOptions.issuer = process.env.JWT_ISSUER;
-    req.user = jwt.verify(token, secret, verifyOptions);
-  } catch (_) {
-    // ignore errors and proceed as unauthenticated
-  }
-  return next();
-}
+// ESM named export aliases for compatibility
+export { authenticate as auth, authenticate as requireAuth };

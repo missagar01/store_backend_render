@@ -1,47 +1,49 @@
 services:
   - type: web
-    name: oracle-backend
+    name: store-backend-render
     env: node
-    buildCommand: npm install
-    startCommand: npm start
-    plan: free
+    plan: starter
     autoDeploy: true
-    healthCheckPath: /health/supabase
+
+    buildCommand: npm install
+    startCommand: node src/server.js
+
+    # Keep health check independent of DB so deploys aren't blocked
+    healthCheckPath: /docs
+    healthCheckTimeout: 10
+
+    # Environment configuration
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 10000
-      # Oracle DB (Thin mode on Render/Linux)
+      # Prefer setting a fixed Node version via package.json "engines",
+      # but you can pin via env too if needed
+      - key: NODE_VERSION
+        value: "22"
+      # Secrets set in the Render dashboard (not committed)
       - key: ORACLE_USER
         sync: false
       - key: ORACLE_PASSWORD
         sync: false
-      - key: ORACLE_CONNECTION_STRING
+      - key: ORACLE_CONNECT_STRING
         sync: false
-      # Supabase
+      # Longer client timeouts for Oracle connectivity (read in your code)
+      - key: ORACLE_CONNECT_TIMEOUT_MS
+        value: "60000"
+      - key: ORACLE_QUEUE_TIMEOUT_MS
+        value: "60000"
+      # Supabase (server-side)
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
+      # Optional: if your code expects these
       - key: SUPABASE_ANON_KEY
         sync: false
-      - key: SUPABASE_USERS_TABLE
-        value: users
-      - key: SUPABASE_USERS_USERNAME_COLUMN
-        value: user_name
-      - key: SUPABASE_USERS_PASSWORD_COLUMN
-        value: password
-      - key: SUPABASE_USERS_EMPLOYEE_ID_COLUMN
-        value: employee_id
-      # JWT
-      - key: JWT_SECRET
+      - key: SUPABASE_JWT_SECRET
         sync: false
-      - key: JWT_EXPIRES_IN
-        value: 1h
-      - key: JWT_ISSUER
-        value: store-backend
-      # Redis (optional)
-      - key: REDIS_URL
-        value: redis://default:password@your-redis:6379
-
+      # Google Sheets (use a single JSON secret for the service account)
+      - key: GOOGLE_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: GOOGLE_SHEETS_SPREADSHEET_ID
+        sync: false
