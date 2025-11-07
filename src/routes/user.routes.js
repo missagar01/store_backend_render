@@ -6,9 +6,9 @@ import { authenticate } from "../middlewares/auth.middleware.js";
 const router = Router();
 
 // GET /user/me  → get from JWT
-router.get("/me", authenticate, getMe);
+router.get("/me", getMe);
 
 // GET /user/:id → get by employee_id (S09203)
-router.get("/:id", authenticate, getUser);
+router.get("/:id", getUser);
 
 export default router;
