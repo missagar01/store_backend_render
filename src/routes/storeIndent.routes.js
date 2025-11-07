@@ -10,7 +10,7 @@ const router = Router();
 
 router.post("/", createStoreIndent);
 router.put("/approve", approveStoreIndent);
-router.get("/pending", getPendingIndents);
-router.get("/history", getHistory);
+router.get("/pending",authenticate, getPendingIndents);
+router.get("/history",authenticate, getHistory);
 
 export default router;

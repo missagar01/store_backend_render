@@ -6,6 +6,6 @@ import { authenticate } from "../middlewares/auth.middleware.js";
 const router = Router();
 
 // GET /uom (requires JWT; now also accepts x-access-token or ?token=)
-router.get("/", getUomItems);
+router.get("/", authenticate, getUomItems);
 
 export default router;
