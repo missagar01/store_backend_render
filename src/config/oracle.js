@@ -6,10 +6,15 @@ export async function initPool() {
   if (pool) return pool;
   const queueTimeout = Number(process.env.ORACLE_QUEUE_TIMEOUT_MS || 60000);
   const connectTimeout = Number(process.env.ORACLE_CONNECT_TIMEOUT_MS || 60000);
+  const connectString =
+    process.env.ORACLE_CONNECT_STRING ||
+    process.env.ORACLE_CONNECTION_STRING ||
+    process.env.ORACLE_CONNECTSTR || // extra compatibility alias if present
+    undefined;
   pool = await oracledb.createPool({
     user: process.env.ORACLE_USER,
     password: process.env.ORACLE_PASSWORD,
-    connectString: process.env.ORACLE_CONNECT_STRING,
+    connectString,
     poolMin: 0,
     poolMax: 4,
     poolIncrement: 1,
@@ -38,4 +43,3 @@ export async function withConn(fn) {
 export async function ping() {
   return withConn((c) => c.execute('select 1 as x from dual'));
 }
-

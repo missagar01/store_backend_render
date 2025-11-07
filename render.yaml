@@ -27,6 +27,9 @@ services:
         sync: false
       - key: ORACLE_CONNECT_STRING
         sync: false
+      # Compatibility: some environments use ORACLE_CONNECTION_STRING
+      - key: ORACLE_CONNECTION_STRING
+        sync: false
       # Longer client timeouts for Oracle connectivity (read in your code)
       - key: ORACLE_CONNECT_TIMEOUT_MS
         value: "60000"
